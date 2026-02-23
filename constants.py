@@ -15,6 +15,8 @@ WEEKDAY_HEADER = "Su Mo Tu We Th Fr Sa"
 
 # Date parsing
 DATE_FORMAT = "%Y-%m-%d"
+# Event timestamps: ISO-like for scriptability (e.g. 2025-02-24T09:00)
+DATETIME_FORMAT = "%Y-%m-%dT%H:%M"
 
 # ANSI: reverse video for highlighting today
 ANSI_REVERSE_START = "\033[7m"

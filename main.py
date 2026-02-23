@@ -14,7 +14,9 @@ Usage examples:
 import argparse
 from datetime import datetime, timedelta
 
-from constants import DATE_FORMAT, MONTHS_PER_QUARTER
+from constants import DATE_FORMAT, DATETIME_FORMAT, DAYS_PER_WEEK, MONTHS_PER_QUARTER
+from events import Event
+from storage import add_event, events_in_range
 from views import (
     render_day,
     render_month,
@@ -46,6 +48,30 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="date for day/week (YYYY-MM-DD; default: today)",
     )
+    add_parser = subparsers.add_parser("add", help="Add a calendar event")
+    add_parser.add_argument(
+        "description",
+        type=str,
+        help="event description",
+    )
+    add_parser.add_argument(
+        "--start",
+        type=str,
+        required=True,
+        help="start time (YYYY-MM-DDTHH:MM)",
+    )
+    add_parser.add_argument(
+        "--end",
+        type=str,
+        required=True,
+        help="end time (YYYY-MM-DDTHH:MM)",
+    )
+    add_parser.add_argument(
+        "--category",
+        type=str,
+        default="",
+        help="event category (default: none)",
+    )
     return parser
 
 
@@ -57,6 +83,14 @@ def _parse_date(date_string: str | None, parser: argparse.ArgumentParser) -> dat
         return datetime.strptime(date_string, DATE_FORMAT)
     except ValueError:
         parser.error(f"invalid --date '{date_string}'; use YYYY-MM-DD")
+
+
+def _parse_datetime(s: str, parser: argparse.ArgumentParser, flag: str) -> datetime:
+    """Parse a datetime string (YYYY-MM-DDTHH:MM)."""
+    try:
+        return datetime.strptime(s, DATETIME_FORMAT)
+    except ValueError:
+        parser.error(f"invalid {flag} '{s}'; use YYYY-MM-DDTHH:MM")
 
 
 def _resolve_year_month(args: argparse.Namespace, today: datetime) -> tuple[int, int]:
@@ -73,12 +107,18 @@ def _week_start_sunday(reference_date: datetime) -> datetime:
 
 
 def _run_day_view(ref_date: datetime) -> None:
-    render_day(ref_date)
+    day_start = ref_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + timedelta(days=1)
+    events = events_in_range(day_start, day_end)
+    render_day(ref_date, events)
 
 
 def _run_week_view(ref_date: datetime) -> None:
     week_start = _week_start_sunday(ref_date)
-    render_week(week_start.year, week_start.month, week_start)
+    week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_end = week_start + timedelta(days=DAYS_PER_WEEK)
+    events = events_in_range(week_start, week_end)
+    render_week(week_start.year, week_start.month, week_start, events)
 
 
 def _run_month_view(year: int, month: int) -> None:
@@ -120,6 +160,19 @@ def main() -> None:
         ref_date = _parse_date(args.date, parser)
         year, month = _resolve_year_month(args, today)
         _dispatch_view(args.period, year, month, ref_date)
+    elif args.command == "add":
+        start = _parse_datetime(args.start, parser, "--start")
+        end = _parse_datetime(args.end, parser, "--end")
+        if end <= start:
+            parser.error("--end must be after --start")
+        event = Event(
+            description=args.description,
+            category=args.category,
+            start=start,
+            end=end,
+        )
+        add_event(event)
+        print(f"Added: {args.description}")
 
 
 if __name__ == "__main__":
